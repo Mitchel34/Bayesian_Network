@@ -6,13 +6,6 @@
 
 #                 Programming Assignment: Bayesian Networks
 
-#
-# 1. D-separation on the HailFinder dataset
-# 2. Extraction of adjacency matrix from the learned HailFinder network
-# 3. Exact Inference (Variable Elimination) on the Burglary-Earthquake network
-# 4. Approximate Inference (Gibbs Sampling) on the Burglary-Earthquake network
-# 5. Validation: Compare exact vs approximate results
-
 
 # Packages
 library(bnlearn)  # For structure learning, adjacency matrix, d-separation
@@ -46,7 +39,48 @@ dsep_result <- dsep(dag_hailfinder, "TempDis", "WindFieldPln", "MeanRH")
 cat("D-separation test (TempDis _|_ WindFieldPln | MeanRH):", dsep_result, "\n\n")
 
 
+
+
+
+
+
 # PART 2: Exact Inference on the Burglary-Earthquake Network (Variable Elimination)
+
+# Define variable levels
+levels_var <- c("TRUE", "FALSE")
+
+# Define Conditional Probability Tables (CPTs) using cptable
+cptB <- cptable(~B, values = c(0.001, 0.999), levels = levels_var)
+cptE <- cptable(~E, values = c(0.002, 0.998), levels = levels_var)
+# CPT for Alarm given Burglary (B) and Earthquake (E)
+# Probabilities for Alarm = TRUE are given by:
+#   P(A=TRUE|B=TRUE,E=TRUE) = 0.95, P(A=TRUE|B=TRUE,E=FALSE) = 0.94,
+#   P(A=TRUE|B=FALSE,E=TRUE) = 0.29, P(A=TRUE|B=FALSE,E=FALSE) = 0.001.
+cptA <- cptable(~A|B:E, values = c(95, 5, 94, 6, 29, 71, 1, 999), levels = levels_var)
+# CPT for JohnCalls given Alarm
+cptJ <- cptable(~J|A, values = c(90, 10, 5, 95), levels = levels_var)
+# CPT for MaryCalls given Alarm
+cptM <- cptable(~M|A, values = c(70, 30, 1, 99), levels = levels_var)
+
+# Compile CPTs and create a gRain Bayesian network
+plist <- compileCPT(list(cptB, cptE, cptA, cptJ, cptM))
+bn_grain <- grain(plist)
+
+# Set evidence: JohnCalls = TRUE, MaryCalls = TRUE
+bn_grain_ev <- setEvidence(bn_grain, evidence = list(J = "TRUE", M = "TRUE"))
+
+# Query the probability of Earthquake given the evidence
+query_exact <- querygrain(bn_grain_ev, nodes = "E")$E
+cat("Exact Inference: P(Earthquake | JohnCalls, MaryCalls):\n")
+# Print the solution
+print(query_exact)
+cat("\n")
+
+
+
+
+
+# 3. Approximate Inference via Gibbs Sampling
 
 # Probability helper functions
 prob_B <- function(b) {
@@ -83,7 +117,7 @@ prob_M <- function(m, a) {
   if (m == "TRUE") p_true else (1 - p_true)
 }
 
-gibbs_sampling <- function(n_iter = 100000, burn_in = 10000) {
+gibbs_sampling <- function(n_iter = 10000, burn_in = 1000) {
   # Non-evidence variables: B, E, A
   # Evidence: J="TRUE", M="TRUE"
   
@@ -133,9 +167,8 @@ gibbs_sampling <- function(n_iter = 100000, burn_in = 10000) {
   mean(e_values == "TRUE")
 }
 
-# Example usage:
-set.seed(469)  # For reproducibility
-gibbs_estimate <- gibbs_sampling(n_iter = 100000, burn_in = 10000)
+set.seed(469)
+gibbs_estimate <- gibbs_sampling(n_iter = 10000, burn_in = 1000)
 cat("Gibbs Sampling (10k samples, 10% burn-in) estimate for P(E=TRUE | J=TRUE, M=TRUE) =", 
     gibbs_estimate, "\n")
 
@@ -149,4 +182,3 @@ difference <- abs(exact_value - approx_value)
 cat("Validation:\n")
 cat("  Exact P(E=TRUE|J=TRUE,M=TRUE)     =", exact_value, "\n")
 cat("  Approx. (Gibbs) P(E=TRUE|J=TRUE,M=TRUE) =", approx_value, "\n")
-cat("  Absolute difference                =", difference, "\n")
