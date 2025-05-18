@@ -1,0 +1,1 @@
+This repository contains an R implementation for key tasks in probabilistic reasoning using Bayesian networks. The assignment demonstrates: D-Separation Testing, Exact Inference, & Approximate Inference. 
